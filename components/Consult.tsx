@@ -24,6 +24,7 @@ const OUTCOMES: [Outcome, string][] = [
   ["no_change", "No change"],
   ["worse", "Worse"],
 ];
+const BRIEF_TIMEOUT_MS = 180_000;
 const MAX = { complaint: 1000, notes: 1000, plan: 1000, problem: 300, treatment: 500, detail: 1000, question: 500 };
 
 const firstName = (p: Patient) => p.name.split(" ")[0];
@@ -155,7 +156,9 @@ export function Consult({ initialPatientId }: { initialPatientId?: string }) {
       setResult(null);
       setLearned(null);
       try {
-        const r = await postJson<BriefResult>("/api/brief", { patientId: patient.id, complaint, compare });
+        // Above the server's worst case (recall, then up to three model attempts with a
+        // short rate-limit wait), so it only fires when something is genuinely stuck.
+        const r = await postJson<BriefResult>("/api/brief", { patientId: patient.id, complaint, compare }, { timeoutMs: BRIEF_TIMEOUT_MS });
         setResult(r);
         setJustPrepared(true);
         if (!problemEdited) setProblem(suggestProblem(r.withMemory.problem, complaint));
@@ -376,9 +379,7 @@ export function Consult({ initialPatientId }: { initialPatientId?: string }) {
                         <span className="spin" aria-hidden /> Preparing…
                       </>
                     ) : (
-                      <>
-                        Prepare brief <kbd>↵</kbd>
-                      </>
+                      "Prepare brief"
                     )}
                   </button>
                 </div>

@@ -2,13 +2,56 @@
 
 **A doctor's assistant that remembers every patient, and learns what actually worked across the whole clinic.**
 
+Built on [Hindsight](https://github.com/vectorize-io/hindsight) agent memory · Groq · Next.js 15 · light and dark themes
+
+![Clinic Desk — a cited brief for Ravi, built from his chart and the clinic's experience, with the live Hindsight trace](docs/screenshot-consult.png)
+
 A family doctor sees 40 patients a day and has about 20 seconds to remember each one's history before they walk in. The history is scattered across paper, old prescriptions and the doctor's own memory. So the same mistakes repeat: a third antibiotic for a cough that was never an infection, a painkiller for a patient on blood thinners, a drug the patient is allergic to.
 
 Clinic Desk reads today's complaint, recalls the patient's own chart **and** what worked for similar patients in the same clinic, then gives the doctor a cited, 20-second brief. After the visit the doctor records the plan and whether it worked. Both are written back to memory, so the next brief for this patient, and for every similar patient, is better than the last.
 
 It is built on [Hindsight](https://github.com/vectorize-io/hindsight), an open-source agent memory system, with Groq for reasoning and Next.js 15 for the app. If you are new to the idea, Vectorize has a good primer on [what agent memory is](https://vectorize.io/what-is-agent-memory) and why it differs from plain retrieval.
 
-![Ravi's brief: without memory on the left, with Hindsight memory on the right](docs/screenshot-brief.png)
+---
+
+## A tour of the app
+
+Five sections, one workspace. Every number and every memory on these screens is read live from Hindsight — nothing is mocked.
+
+### Overview — the clinic at a glance
+Today's queue as a timeline, what is still pending, what the clinic learned today, and a live feed of recent memory.
+
+![Overview in dark mode](docs/screenshot-overview.png)
+
+### Consult — the 20-second brief
+Pick a patient, press **Prepare brief**. Clinic Desk recalls the patient's chart and similar anonymised cases, then writes a brief where every flag is cited (`P3` = this patient's chart, `C2` = a clinic case). The **Hindsight trace** on the right follows the real pipeline: recall → reason → evidence → outcome → retain → recalled again.
+
+![Ravi's brief: without memory beside with Hindsight memory](docs/screenshot-brief.png)
+
+### Evidence — why did the AI say that?
+Click any citation and the exact memory behind the claim opens, with where it came from and when it was learned.
+
+![Evidence explorer showing the clinic case behind a claim](docs/screenshot-evidence.png)
+
+### Patients — a chart for everyone on the roster
+
+| Directory | Patient profile & timeline |
+| --- | --- |
+| ![Patients directory](docs/screenshot-patients.png) | ![Lakshmi's timeline](docs/screenshot-profile.png) |
+
+### Memory — personal history vs. collective experience
+Patient memory is each person's own tag-scoped chart; clinic memory is the practice's anonymised experience. Browse, search and trace every fact.
+
+![Memory browser](docs/screenshot-memory.png)
+
+### Insights — what the clinic has learned
+Real outcome counts and their distribution, recent clinic learning and the similar-case evidence behind it. Small samples are labelled as such.
+
+![Insights in dark mode](docs/screenshot-insights.png)
+
+### On a phone
+
+![Overview in light mode and Consult in dark mode on a phone](docs/screenshot-mobile.png)
 
 ---
 
@@ -30,7 +73,7 @@ Every claim is cited back to the exact memory it came from (`P5` for the patient
 2. **Close the visit and record the outcome.** The plan goes to her chart; the outcome goes to her chart and, with her name stripped, to clinic memory.
 3. **Re-run the brief.** It now cites her own labs and treatment, marks every memory learned today with a **New** badge, and the anonymised case is already helping the next patient like her.
 
-The header shows the live memory count of each bank, and the **Full chart** tab lists every fact Hindsight holds for the selected patient, oldest first.
+The sidebar shows the live fact count of each bank, and the **Full chart** tab lists every fact Hindsight holds for the selected patient, oldest first.
 
 ## How Hindsight memory is used
 
@@ -86,8 +129,8 @@ The [Hindsight documentation](https://hindsight.vectorize.io/) covers each of th
 **Requirements:** Node 18.18+, a [Hindsight Cloud](https://ui.hindsight.vectorize.io) account (or a self-hosted server), a free [Groq](https://console.groq.com/keys) key.
 
 ```bash
-git clone https://github.com/vedant7007/clinic-desk.git
-cd clinic-desk
+git clone https://github.com/Abhinav1480/clinic_desk.git
+cd clinic_desk
 npm install
 cp .env.example .env.local     # add HINDSIGHT_API_KEY and GROQ_API_KEY
 npm run seed                   # 8 patients + 26 anonymised outcomes; waits until memory is ready
@@ -99,6 +142,7 @@ npm run dev                    # http://localhost:3000
 | --- | --- |
 | `npm run seed` | Creates both banks, loads the synthetic practice, waits for Hindsight to finish extracting and consolidating. Safe to re-run |
 | `npm run check -- P004` | Builds a real brief for one patient and fails if a recalled memory belongs to another patient, if a seeded safety fact is missing from the flags, or if a new patient's brief invents history |
+| `npm run audit` | Consistency audit against live Hindsight: no impossible or future dates, strict patient isolation, anonymised clinic memory, and outcome counts that match the source data. Exits non-zero on any violation |
 | `npm test` | Unit tests plus an integration test against a local mock of the Hindsight and Groq APIs |
 | `npm run screenshots` | Recaptures the README screenshots from a running app (`APP_URL`, default `http://localhost:3000`) and removes its demo writes afterwards |
 
@@ -141,6 +185,16 @@ Four things make Hindsight visible end to end, and each is driven by live state 
 
 `GET /api/health` (`lib/health.ts`) backs all of this by probing both banks on every call. It returns whether each key is set, the host reached, and each bank's state and node count — never the keys themselves.
 
+## Design
+
+The interface is one design system in `app/globals.css`, built so light and dark are designed as peers rather than inversions:
+
+- **Palette:** warm paper and charcoal surfaces, one restrained teal for patient memory and the primary action, and a cool ice-blue that always means clinic memory.
+- **Type:** Instrument Serif for names, titles and figures; Geist for the interface; Geist Mono for times, dates and citations.
+- **Glacier buttons:** a frosted, cool-tinted glass treatment reserved for the actions that start work (Prepare brief, Start consulting).
+- **Motion** (`components/motion.tsx`): three durations and one easing family; sliding indicators for navigation and tabs; numbers that count up only to their real value; drawers and the command palette that animate out and return focus. Hover lifts only apply to fine pointers, touch gets press feedback, and `prefers-reduced-motion` removes movement while keeping every state visible.
+- **Theme:** resolved before first paint (no flash), persisted, and following the system on first visit.
+
 ## Project layout
 
 ```
@@ -166,6 +220,8 @@ components/
   Consult.tsx           full consultation workflow + Hindsight trace
   HindsightTrace.tsx    live recall -> reason -> retain -> learned stepper
   EvidenceDrawer.tsx    claim -> source -> supporting memory
+  motion.tsx            sliding indicators, count-up, exit presence, dialog focus
+  ThemeToggle.tsx, CommandPalette.tsx
   MemoryCard.tsx, MemoryPanel.tsx, ActivityFeed.tsx, ArchitectureView.tsx, SetupState.tsx, ui.tsx, icons.tsx
 lib/
   hindsight.ts          clients, bank setup (missions), stats, tag-scoped + bank-wide listing, error mapping
@@ -179,7 +235,7 @@ lib/
 data/
   patients.ts           today's queue (display only)
   seed-memories.ts      synthetic chart history and clinic outcomes
-scripts/                seed, check, screenshots
+scripts/                seed, check, audit, screenshots
 tests/                  vitest unit and integration tests
 ```
 
